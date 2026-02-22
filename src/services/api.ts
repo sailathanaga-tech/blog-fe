@@ -57,7 +57,7 @@ class ApiService {
     }
   }
 
-  // Posts API
+  // Post API
   async getPosts(): Promise<Post[]> {
     return this.request<Post[]>('/posts');
   }
