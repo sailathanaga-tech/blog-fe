@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { apiService } from "@/services/api";
 
 const EditPost = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,30 +19,38 @@ const EditPost = () => {
 
   useEffect(() => {
     const fetchPost = async () => {
-      const { data } = await supabase.from("posts").select("*").eq("id", id!).single();
-      if (data) {
-        if (data.author_id !== user?.id) {
+      try {
+        const post = await apiService.getPost(id!);
+        if (post.author !== user?.name && post.author !== user?.email) {
           toast.error("You can only edit your own posts");
           navigate("/");
           return;
         }
-        setTitle(data.title);
-        setContent(data.content);
+        setTitle(post.title);
+        setContent(post.content);
+      } catch (error) {
+        toast.error("Failed to fetch post");
+        navigate("/");
       }
       setLoading(false);
     };
     fetchPost();
-  }, [id, user]);
+  }, [id, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const { error } = await supabase.from("posts").update({ title, content }).eq("id", id!);
-    if (error) {
-      toast.error("Failed to update post");
-    } else {
+
+    try {
+      await apiService.updatePost(id!, {
+        title,
+        content,
+        author: user?.name || user?.email || "Anonymous",
+      });
       toast.success("Post updated!");
       navigate(`/post/${id}`);
+    } catch (error) {
+      toast.error("Failed to update post");
     }
     setSaving(false);
   };
@@ -57,15 +65,32 @@ const EditPost = () => {
 
   return (
     <main className="container mx-auto max-w-2xl px-4 py-12">
-      <h1 className="text-3xl font-bold mb-8" style={{ fontFamily: 'var(--font-heading)' }}>Edit post</h1>
+      <h1
+        className="text-3xl font-bold mb-8"
+        style={{ fontFamily: "var(--font-heading)" }}
+      >
+        Edit post
+      </h1>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="title">Title</Label>
-          <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <Input
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="content">Content</Label>
-          <Textarea id="content" value={content} onChange={(e) => setContent(e.target.value)} rows={12} required className="resize-none" />
+          <Textarea
+            id="content"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={12}
+            required
+            className="resize-none"
+          />
         </div>
         <Button type="submit" disabled={saving}>
           {saving ? "Saving…" : "Save Changes"}
